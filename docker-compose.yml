@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: apple_value_web
+    command: flask db upgrade && flask run --host=0.0.0.0 # Ensure migrations run & start app
+    volumes:
+      - ./app:/app # Mounts your local app directory into the container for live code changes
+    ports:
+      - "5001:5000" # Map port 5000 in container to 5001 on your host machine
+    environment:
+      - FLASK_APP=${FLASK_APP}
+      - FLASK_ENV=${FLASK_ENV}
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be ready
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: apple_value_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/ # Persist database data
+    environment:
+      POSTGRES_USER: user # Must match .env and DATABASE_URL
+      POSTGRES_PASSWORD: password # Must match .env and DATABASE_URL
+      POSTGRES_DB: apple_value_db # Must match .env and DATABASE_URL
+    ports:
+      - "5433:5432" # Map port 5432 in container to 5433 on your host (optional, for external tools)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d apple_value_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data: # Defines the named volume for data persistence
