@@ -3,66 +3,67 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import time
-import re # Import regular expression module
+import random
+import re
+import urllib.parse # For decoding URL components
 
 # --- Configuration ---
-# Specific URL for 13-inch MacBook Air M-series (Update if needed)
-# We will add more URLs later for other models/sizes
+OUTPUT_FILE = "apple_products.json"
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36'
+REQUEST_TIMEOUT = 25
+SLEEP_MIN = 2.5
+SLEEP_MAX = 5.5
+
+# List of Apple Store pages/configurations to scrape (India)
 TARGET_URLS = [
-    'https://www.apple.com/in/shop/buy-mac/macbook-air/13-inch', # 13-inch Air
-    "https://www.apple.com/in/shop/buy-mac/macbook-air/15-inch", # 15-inch Air
-    "https://www.apple.com/in/shop/buy-mac/macbook-pro/14-inch-macbook-pro", # 14-inch Pro
-    "https://www.apple.com/in/shop/buy-mac/macbook-pro/16-inch-macbook-pro", # 16-inch Pro
-    # Add URLs for 15-inch Air, MacBook Pro, iPads etc. here later
-    # 'https://www.apple.com/in/shop/buy-ipad/ipad-air',
+    # --- MacBooks ---
+    # 'https://www.apple.com/in/shop/buy-mac/macbook-air/13-inch',
+    # "https://www.apple.com/in/shop/buy-mac/macbook-air/15-inch",
+    # "https://www.apple.com/in/shop/buy-mac/macbook-pro/14-inch-macbook-pro",
+    # "https://www.apple.com/in/shop/buy-mac/macbook-pro/16-inch-macbook-pro",
 
     # --- Desktop Macs ---
     'https://www.apple.com/in/shop/buy-mac/imac',
     'https://www.apple.com/in/shop/buy-mac/mac-mini',
     'https://www.apple.com/in/shop/buy-mac/mac-studio',
-    #'https://www.apple.com/in/shop/buy-mac/mac-pro',
 
     # --- iPhones (Specific Configurations) ---
-    # iPhone 16 Pro
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-128gb-black-titanium',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-256gb-black-titanium',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-512gb-black-titanium',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-1tb-black-titanium',
-    # iPhone 16 Pro Max
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-256gb-black-titanium',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-512gb-black-titanium',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-1tb-black-titanium',
-    # iPhone 16
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-128gb-black',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-256gb-black',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-512gb-black',
-    # iPhone 16 Plus
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-128gb-black',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-256gb-black',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-512gb-black',
+    # # iPhone 16 Pro
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-128gb-black-titanium',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-256gb-black-titanium',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-512gb-black-titanium',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.3%22-display-1tb-black-titanium',
+    # # iPhone 16 Pro Max
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-256gb-black-titanium',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-512gb-black-titanium',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16-pro/6.9%22-display-1tb-black-titanium',
+    # # iPhone 16
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-128gb-black',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-256gb-black',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.1%22-display-512gb-black',
+    # # iPhone 16 Plus
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-128gb-black',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-256gb-black',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-16/6.7%22-display-512gb-black',
 
-    # iPhone 15 (Example: Blue - add other colors/models if needed)
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-128gb-blue',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-256gb-blue',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-512gb-blue',
-    # iPhone 15 Plus (Example: Blue)
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-128gb-blue',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-256gb-blue',
-    'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-512gb-blue',
+    # # iPhone 15 (Example: Blue - add other colors/models if needed)
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-128gb-blue',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-256gb-blue',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.1%22-display-512gb-blue',
+    # # iPhone 15 Plus (Example: Blue)
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-128gb-blue',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-256gb-blue',
+    # 'https://www.apple.com/in/shop/buy-iphone/iphone-15/6.7%22-display-512gb-blue',
+
+    # Add iPhone SE / 14 / 13 specific config URLs if available and needed
 ]
+# Clean up URLs
+TARGET_URLS = sorted(list(set(TARGET_URLS)))
 
-# Pretend to be a browser
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36',
-    'Accept-Language': 'en-US,en;q=0.9', # Often helpful
-}
+# --- Helper Functions ---
 
 def extract_specs(spec_string):
-    """
-    Uses regular expressions to extract specs from a string like:
-    '10-Core CPU 8-Core GPU 16GB Unified Memory 256GB SSD Storage'
-    Returns a dictionary {'cpu_cores': int, 'gpu_cores': int, 'ram_gb': int, 'storage_gb': int}
-    """
+    """Extracts CPU, GPU, RAM, Storage from Mac/Desktop spec strings."""
     specs = {
         'cpu_cores': 0,
         'gpu_cores': 0,
@@ -70,185 +71,279 @@ def extract_specs(spec_string):
         'storage_gb': 0
     }
     try:
+        # Use slightly more flexible regex patterns
         # Extract CPU cores
-        match = re.search(r'(\d+)-Core CPU', spec_string, re.IGNORECASE)
+        match = re.search(r'(\d+)[-\s]Core CPU', spec_string, re.IGNORECASE)
         if match: specs['cpu_cores'] = int(match.group(1))
 
         # Extract GPU cores
-        match = re.search(r'(\d+)-Core GPU', spec_string, re.IGNORECASE)
+        match = re.search(r'(\d+)[-\s]Core GPU', spec_string, re.IGNORECASE)
         if match: specs['gpu_cores'] = int(match.group(1))
 
-        # Extract RAM
-        match = re.search(r'(\d+)GB Unified Memory', spec_string, re.IGNORECASE)
+        # Extract RAM (Unified Memory or just Memory/RAM)
+        match = re.search(r'(\d+)\s*GB\s*(Unified\s)?Memory', spec_string, re.IGNORECASE)
+        if not match: match = re.search(r'(\d+)\s*GB\s*RAM', spec_string, re.IGNORECASE)
         if match: specs['ram_gb'] = int(match.group(1))
 
-        # Extract Storage (handling GB and TB)
-        match_gb = re.search(r'(\d+)GB SSD Storage', spec_string, re.IGNORECASE)
-        match_tb = re.search(r'(\d+)TB SSD Storage', spec_string, re.IGNORECASE)
+        # Extract Storage (handling GB and TB, SSD or Storage)
+        match_gb = re.search(r'(\d+)\s*GB\s*(SSD|Storage)', spec_string, re.IGNORECASE)
+        match_tb = re.search(r'(\d+)\s*TB\s*(SSD|Storage)', spec_string, re.IGNORECASE)
         if match_gb:
             specs['storage_gb'] = int(match_gb.group(1))
         elif match_tb:
             specs['storage_gb'] = int(match_tb.group(1)) * 1024 # Convert TB to GB
 
     except Exception as e:
-        print(f"Error parsing spec string '{spec_string}': {e}")
+        print(f"Error parsing spec string '{spec_string[:100]}...': {e}")
     return specs
 
-# scraper.py (Replace the parse_product_page function only)
+def parse_iphone_from_url(url, soup):
+    """
+    Parses iPhone data directly from a specific configuration URL.
+    Extracts model, size, storage from URL path and price from page content.
+    """
+    try:
+        print(f"-> Parsing as iPhone Config URL: {url}")
+        path_segments = [urllib.parse.unquote(seg) for seg in url.split('/') if seg]
+
+        model_segment = path_segments[-2]
+        config_segment = path_segments[-1]
+
+        size_match = re.search(r'(\d+(\.\d+)?)"', config_segment)
+        display_size = size_match.group(1) if size_match else None
+
+        storage_match = re.search(r'(\d+)(gb|tb)', config_segment, re.IGNORECASE)
+        storage_gb = 0
+        if storage_match:
+            val = int(storage_match.group(1))
+            unit = storage_match.group(2).lower()
+            storage_gb = val * 1024 if unit == 'tb' else val
+        else:
+             print(f"-> WARNING: Could not extract storage from config segment: '{config_segment}' in URL: {url}")
+
+        base_name = model_segment.replace('-', ' ').title().replace("Iphone", "iPhone")
+        if display_size:
+             if 'pro' not in base_name.lower() and display_size in ['6.7', '6.9']:
+                 base_name += " Plus"
+             elif 'pro' in base_name.lower() and display_size in ['6.7', '6.9']:
+                 base_name += " Max"
+
+        full_name = f"{base_name} ({storage_gb}GB)" if storage_gb else base_name
+
+        # --- Extract Price from Page (Revised Logic) ---
+        price_inr = 0
+        # Regex to find the price pattern (₹ followed by digits/commas, ending with .00)
+        price_pattern = re.compile(r'₹\s*([\d,]+)\.00')
+
+        # Search within common tags that might contain the main price
+        potential_price_tags = soup.find_all(['span', 'div'], limit=20) # Limit search scope
+        found_price_text = None
+
+        for tag in potential_price_tags:
+            # Check direct text content first
+            price_match = price_pattern.search(tag.get_text(strip=True))
+            if price_match and 'mo.' not in tag.get_text(): # Avoid monthly EMI price
+                found_price_text = price_match.group(0) # Get the full matched price string e.g., ₹69,900.00
+                print(f"-> DEBUG (iPhone Price): Found potential price '{found_price_text}' in tag: {tag.name}.{tag.get('class', '')}")
+                break # Assume first prominent match is the one
+
+            # Check within attributes if direct text fails (less likely but possible)
+            # for attr_val in tag.attrs.values():
+            #     if isinstance(attr_val, str):
+            #         price_match = price_pattern.search(attr_val)
+            #         if price_match:
+            #             found_price_text = price_match.group(0)
+            #             print(f"-> DEBUG (iPhone Price): Found potential price '{found_price_text}' in attribute")
+            #             break
+            # if found_price_text: break
+
+
+        if found_price_text:
+            price_cleaned = re.sub(r'[₹,]', '', found_price_text.split('.')[0]).strip()
+            if price_cleaned.isdigit():
+                price_inr = int(price_cleaned)
+            else:
+                 print(f"-> ERROR: Could not convert cleaned price '{price_cleaned}' to int for iPhone URL: {url}")
+        else:
+            print(f"-> ERROR: Price pattern not found in relevant tags for iPhone URL: {url}")
+            return None # Critical failure if price not found
+
+        if price_inr <= 0:
+             print(f"-> ERROR: Extracted zero or invalid price ({price_inr}) for iPhone URL: {url}")
+             return None
+
+        # --- Construct Product Data ---
+        product_data = {
+            'name': full_name,
+            'base_name': base_name,
+            'type': 'iPhone',
+            'chip': 'A-Series', # Placeholder - Chip info not easily available on these pages
+            'cpu_cores': 0,
+            'gpu_cores': 0,
+            'ram_gb': 0, # Placeholder - RAM info not easily available
+            'storage_gb': storage_gb,
+            'price_inr': price_inr,
+            'source_url': url
+        }
+        print(f"-> Success (iPhone URL): {full_name} | Price: {price_inr}")
+        return product_data
+
+    except Exception as e:
+        print(f"!!! Error parsing iPhone URL {url}: {e} !!!")
+        import traceback
+        traceback.print_exc() # Print full traceback for iPhone errors
+        return None
 
 def parse_product_page(url, soup):
     """
-    Parses the BeautifulSoup object for a specific Apple product page structure.
-    Attempts to handle both MacBook Air and MacBook Pro pages.
-    Includes debugging for Pro pages.
+    Parses the BeautifulSoup object. Dispatches to specific parsers based on URL pattern.
+    Handles specific iPhone config URLs or generic Mac/Desktop pages.
     """
-    products = []
-    is_pro_page = 'macbook-pro' in url # Check if it's likely a Pro page based on URL
+    # --- Check if it's a specific iPhone configuration URL ---
+    if "/shop/buy-iphone/iphone-" in url and len(url.split('/')) > 5:
+        iphone_data = parse_iphone_from_url(url, soup)
+        return [iphone_data] if iphone_data else []
 
-    # --- Get Base Product Name (Improved) ---
-    base_name = "Unknown Mac" # Default
+    # --- Otherwise, handle as Mac/Desktop page ---
+    print(f"-> Parsing as Mac/Desktop Page: {url}")
+    products = []
+    page_type = "Unknown" # Will be determined below
+
+    # --- Get Base Product Name (Mac/Desktop Logic) ---
+    base_name = "Unknown Product"
     title_tag = soup.find('title')
     page_title_text = title_tag.text.lower() if title_tag else ""
+    url_lower = url.lower()
 
-    if 'macbook pro' in page_title_text:
-        if '14-inch' in page_title_text or '14"' in page_title_text:
-            base_name = "14-inch MacBook Pro"
-        elif '16-inch' in page_title_text or '16"' in page_title_text:
-            base_name = "16-inch MacBook Pro"
-        else:
-            base_name = "MacBook Pro" # Fallback if size not in title
-    elif 'macbook air' in page_title_text:
-        if '13-inch' in page_title_text or '13"' in page_title_text :
-             base_name = "13-inch MacBook Air"
-        elif '15-inch' in page_title_text or '15"' in page_title_text:
-             base_name = "15-inch MacBook Air"
-        else:
-             base_name = "MacBook Air" # Fallback
-    # Add more base name detection as needed (iPad, iMac etc.)
-    elif 'ipad air' in page_title_text: base_name = "iPad Air"
-    elif 'ipad pro' in page_title_text: base_name = "iPad Pro"
-    elif 'imac' in page_title_text: base_name = "iMac"
-    elif 'mac mini' in page_title_text: base_name = "Mac mini"
+    # Determine Mac/Desktop base name
+    if 'imac' in url_lower or 'imac' in page_title_text: base_name = "iMac"; page_type = "Desktop"
+    elif 'mac-mini' in url_lower or 'mac mini' in page_title_text: base_name = "Mac mini"; page_type = "Desktop"
+    elif 'mac-studio' in url_lower or 'mac studio' in page_title_text: base_name = "Mac Studio"; page_type = "Desktop"
+    elif 'mac-pro' in url_lower or 'mac pro' in page_title_text: base_name = "Mac Pro"; page_type = "Desktop"
+    elif 'macbook-pro' in url_lower or 'macbook pro' in page_title_text:
+        page_type = "MacBook"
+        if '14-inch' in url_lower or '14"' in page_title_text or '14-inch' in page_title_text: base_name = "14-inch MacBook Pro"
+        elif '16-inch' in url_lower or '16"' in page_title_text or '16-inch' in page_title_text: base_name = "16-inch MacBook Pro"
+        else: base_name = "MacBook Pro"
+    elif 'macbook-air' in url_lower or 'macbook air' in page_title_text:
+        page_type = "MacBook"
+        if '13-inch' in url_lower or '13"' in page_title_text or '13-inch' in page_title_text: base_name = "13-inch MacBook Air"
+        elif '15-inch' in url_lower or '15"' in page_title_text or '15-inch' in page_title_text: base_name = "15-inch MacBook Air"
+        else: base_name = "MacBook Air"
+    else:
+        print(f"-> Warning: Could not determine Mac/Desktop base name for URL: {url}")
+        if '/buy-mac/' in url_lower: page_type = "Mac" # Generic Mac type
 
+    print(f"-> Determined Base Name: '{base_name}', Page Type: '{page_type}'")
 
-    print(f"Determined base name: '{base_name}' for URL: {url}")
-    if is_pro_page: print("DEBUG: Processing as MacBook Pro page.")
-
-    # --- CORE SCRAPING LOGIC ---
-    # Try the common price selector first
-    price_selector = 'span.as-price-currentprice'
-    price_elements = soup.find_all('span', class_='as-price-currentprice')
-
-    # Fallback selectors if the first one fails (might be needed for Pro)
-    if not price_elements:
-        price_selector = 'span.rf-price-label' # Another common one
-        print(f"Selector 'span.as-price-currentprice' failed, trying '{price_selector}'...")
-        price_elements = soup.find_all('span', class_='rf-price-label')
-    if not price_elements:
-         price_selector = 'div.currentprice' # Yet another possibility
-         print(f"Selector 'span.rf-price-label' failed, trying '{price_selector}'...")
-         price_elements = soup.find_all('div', class_='currentprice') # Price might be in a div
-
-    print(f"Found {len(price_elements)} potential price elements using selector '{price_selector}'")
-    if is_pro_page and not price_elements:
-         print("DEBUG (Pro Page): Failed to find price elements with known selectors.")
+    # --- CORE SCRAPING LOGIC (Mac/Desktop) ---
+    price_selectors = [
+        'span.as-price-currentprice',
+        'span.rf-price-label',
+        'div.currentprice'
+    ]
+    price_elements = []
+    used_price_selector = "None"
+    for selector in price_selectors:
+        elements = soup.select(selector)
+        if elements:
+            price_elements.extend(elements)
+            used_price_selector = selector
+            print(f"-> Found {len(elements)} potential price elements using selector '{used_price_selector}'")
+            # Use the first successful selector
+            if len(elements) > 0: break
 
     if not price_elements:
-        print(f"Warning: Could not find any price elements using known selectors. Scraping for this page might fail.")
+        print(f"-> Warning: Could not find any price elements using known selectors for Mac/Desktop page.")
         return []
 
-    processed_containers = set()
+    processed_containers = set() # Use text hash of container to avoid processing duplicates
+    print(f"--- Processing {len(price_elements)} potential price elements ---") # DEBUG
 
-    for price_element in price_elements:
+    for i, price_element in enumerate(price_elements):
+        print(f"\n--- DEBUG: Processing Price Element #{i+1} ---") # DEBUG
+        container = None
+        price_inr = 0
+        specs = {}
+        chip_name = "N/A"
+        is_valid = False
+        full_name = base_name # Start with base name
+
         try:
+            # --- Extract Price ---
+            price_text = price_element.get_text(strip=True)
+            print(f"-> DEBUG: Raw Price Text: '{price_text}'") # DEBUG
+            price_match = re.search(r'₹\s*([\d,]+)', price_text)
+            if not price_match:
+                print("-> DEBUG: Price pattern not matched. Skipping element.") # DEBUG
+                continue
+            price_cleaned = re.sub(r',', '', price_match.group(1)).strip()
+            price_inr = int(price_cleaned) if price_cleaned.isdigit() else 0
+            print(f"-> DEBUG: Extracted Price (INR): {price_inr}") # DEBUG
+            if price_inr <= 0:
+                print("-> DEBUG: Price is zero or invalid. Skipping element.") # DEBUG
+                continue
+
             # --- Find Parent Container ---
-            # Try common container patterns, maybe add Pro-specific ones if identified later
-            container = price_element.find_parent('div', class_=re.compile(r'rf-configuration|rf-product|as-producttile|pdp-options|rf-chip-selection-option|product-selection', re.IGNORECASE))
-            if not container: container = price_element.find_parent('form')
+            container = price_element.find_parent(['div', 'form', 'li'], class_=re.compile(r'config|product|option|selection|tile|item|group|rf-pdp-option', re.IGNORECASE))
             if not container:
                  parent = price_element.parent
-                 for _ in range(5): # Go up max 5 levels
-                      if parent: parent = parent.parent
+                 for level in range(6): # Go up max 6 levels
+                      if parent and hasattr(parent, 'find_parent'): parent = parent.parent
                       else: break
                  container = parent
 
             if not container:
-                if is_pro_page: print("DEBUG (Pro Page): Could not find parent container for a price element.")
+                print("-> DEBUG: Could not find parent container. Skipping element.") # DEBUG
                 continue
+            else:
+                 # Limit container text for hashing and debugging
+                 container_text_preview = container.get_text(strip=True, separator='|')[:300]
+                 print(f"-> DEBUG: Found Container (Preview): '{container_text_preview}...'.") # DEBUG
 
-            container_text_id = container.get_text(strip=True, separator='|')
-            if container_text_id in processed_containers: continue
+            # Use text content hash for deduplication
+            container_text_id = container.get_text(strip=True, separator='|')[:250]
+            if container_text_id in processed_containers:
+                print(f"-> DEBUG: Skipping already processed container (based on text hash).") # DEBUG
+                continue
             processed_containers.add(container_text_id)
 
-            # --- Extract Price ---
-            price_text = price_element.get_text(strip=True)
-            price_cleaned = price_text.replace('₹', '').replace(',', '').strip()
-            if '.' in price_cleaned: price_cleaned = price_cleaned.split('.')[0]
-            if price_cleaned.isdigit(): price_inr = int(price_cleaned)
-            else:
-                 if is_pro_page: print(f"DEBUG (Pro Page): Invalid price '{price_text}'. Skipping.")
-                 else: print(f"Warning: Invalid price '{price_text}'. Skipping container.")
-                 continue
+            # --- Extract Specs (using helper on container text) ---
+            container_text_for_specs = container.get_text(separator=' ', strip=True)
+            # print(f"-> DEBUG: Container Text for Specs: '{container_text_for_specs[:500]}...'") # DEBUG (Optional - can be very long)
+            specs = extract_specs(container_text_for_specs)
+            print(f"-> DEBUG: Extracted Specs: {specs}") # DEBUG
 
-            # --- Extract Core Specs (CPU/GPU/RAM/Storage) ---
-            specs = {'cpu_cores': 0, 'gpu_cores': 0, 'ram_gb': 0, 'storage_gb': 0}
-            spec_string = ""
-            # Define the spec keyword checker function
-            def contains_core_specs(tag):
-                # Check common tags where specs might appear
-                if not tag.name in ['h3', 'h4', 'p', 'span', 'div', 'li']: return False
-                text = tag.get_text().lower()
-                # Relaxed check: look for CPU/GPU AND Memory AND SSD keywords
-                has_cpu_gpu = 'core cpu' in text or 'core gpu' in text
-                has_memory = 'gb unified memory' in text or 'gb memory' in text or 'gb ram' in text
-                has_storage = 'gb ssd' in text or 'tb ssd' in text
-                return has_cpu_gpu and has_memory and has_storage
-
-            spec_element = container.find(contains_core_specs)
-
-            if spec_element:
-                spec_string = spec_element.get_text(separator=' ', strip=True)
-                specs = extract_specs(spec_string) # Use the existing robust extraction function
-                if specs['ram_gb'] == 0 or specs['storage_gb'] == 0:
-                     if is_pro_page: print(f"DEBUG (Pro Page): Found spec element but failed parse RAM/Storage from '{spec_string[:100]}...'.")
-                     else: print(f"Warning: Found spec element but failed to parse RAM/Storage from '{spec_string[:100]}...'. Skipping container.")
-                     continue
-                # else: print(f"Successfully parsed specs from element: {spec_string[:50]}...") # Debug
-            else:
-                # If direct find fails, try finding all text and searching within it (less reliable)
-                all_text = container.get_text(separator=' ', strip=True)
-                specs = extract_specs(all_text)
-                if specs['ram_gb'] > 0 and specs['storage_gb'] > 0:
-                     if is_pro_page: print("DEBUG (Pro Page): Parsed specs from container's full text as fallback.")
-                     spec_string = all_text # Use the full text as the source string
-                else:
-                     if is_pro_page: print(f"DEBUG (Pro Page): Could not find element containing core specs for price {price_inr}. Also failed fallback text search.")
-                     else: print(f"Warning: Could not find element containing core specs (CPU/RAM/Storage) for price {price_inr}. Skipping container.")
-                     continue # Skip if no core specs found
-
-            # --- Extract Chip Name (Handle M Pro/Max) ---
-            chip_name = "Unknown M-Series"
-            # Try finding chip name within the container OR use the spec string
-            # Look for M followed by digit, possibly followed by Pro/Max/Ultra
-            chip_match = re.search(r'(M\d+(\s*(Pro|Max|Ultra))?)', container.get_text(), re.IGNORECASE)
+            # --- Extract Chip Name ---
+            chip_match = re.search(r'(M\d+(\s*(Pro|Max|Ultra))?)', container_text_for_specs, re.IGNORECASE)
             if chip_match:
-                 chip_name = chip_match.group(1).upper().replace(" ", "") # Consolidate like M3PRO
+                 chip_name = chip_match.group(1).upper().replace(" ", "")
             else:
-                 if is_pro_page: print(f"DEBUG (Pro Page): Could not determine M-series chip for price {price_inr} from container text.")
-                 else: print(f"Warning: Could not determine M-series chip for price {price_inr}. Skipping.")
-                 continue
-
+                 if page_type in ["MacBook", "Desktop", "Mac"]: chip_name = "M-Series (Unknown)"
+            print(f"-> DEBUG: Extracted Chip: {chip_name}") # DEBUG
 
             # --- Construct Full Product Name ---
-            ram_val = specs.get('ram_gb', '?')
-            storage_val = specs.get('storage_gb', '?')
-            # Use the detected base_name
-            full_name = f"{base_name} {chip_name} ({ram_val}GB RAM, {storage_val}GB SSD)"
+            if chip_name != "N/A" and chip_name != "M-Series (Unknown)": full_name += f" {chip_name}"
+            ram_val = specs.get('ram_gb', 0)
+            storage_val = specs.get('storage_gb', 0)
+            spec_parts = []
+            if ram_val > 0: spec_parts.append(f"{ram_val}GB RAM")
+            if storage_val > 0: spec_parts.append(f"{storage_val}GB SSD")
+            if spec_parts: full_name += f" ({', '.join(spec_parts)})"
+            print(f"-> DEBUG: Constructed Full Name: {full_name}") # DEBUG
 
-            # --- Add Product if Valid ---
-            if price_inr > 0 and specs['ram_gb'] > 0 and specs['storage_gb'] > 0 and chip_name != "Unknown M-Series":
+            # --- Validation ---
+            is_valid = price_inr > 0 and page_type != "Unknown"
+            if page_type in ["MacBook", "Desktop", "Mac"]:
+                # For Macs, require storage and a chip name (even if unknown M-series)
+                is_valid = is_valid and specs['storage_gb'] > 0 and chip_name != "N/A"
+            print(f"-> DEBUG: Validation Check Result: {is_valid}") # DEBUG
+
+            if is_valid:
                 product_data = {
                     'name': full_name,
+                    'base_name': base_name,
+                    'type': page_type,
                     'chip': chip_name,
                     'cpu_cores': specs.get('cpu_cores', 0),
                     'gpu_cores': specs.get('gpu_cores', 0),
@@ -257,97 +352,118 @@ def parse_product_page(url, soup):
                     'price_inr': price_inr,
                     'source_url': url
                 }
-                products.append(product_data)
-                # print(f"Successfully added: {product_data}") # Debug
-            else:
-                 if is_pro_page: print(f"DEBUG (Pro Page): Skipping invalid data: Name={full_name}, Price={price_inr}, Specs={specs}, Chip={chip_name}")
-                 else: print(f"Skipping invalid data for container: Name={full_name}, Price={price_inr}, Specs={specs}")
+                # Avoid adding exact duplicates based on key fields from the *same page*
+                identifier = (product_data['name'], product_data['price_inr'])
+                if identifier not in [(p['name'], p['price_inr']) for p in products]:
+                    products.append(product_data)
+                    print(f"-> Success (Mac/Desktop): Added product - {full_name} | Price: {price_inr}") # DEBUG Success
+                # else: # Debugging duplicates on same page
+                    # print(f"-> DEBUG: Skipping duplicate product on same page: {identifier}")
 
         except Exception as e:
-            print(f"Error processing a container related to price element: {e}")
-            # import traceback # Uncomment for detailed stack trace
-            # traceback.print_exc() # Uncomment for detailed stack trace
-            continue
+            print(f"!!! Error processing a Mac/Desktop container/element #{i+1}: {e} !!!")
+            import traceback
+            traceback.print_exc() # Print full traceback for Mac errors
+            continue # Move to the next price element
 
+    print(f"--- Finished processing price elements for {url} ---") # DEBUG
     return products
 
-# Ensure the rest of scraper.py (imports, TARGET_URLS, HEADERS, extract_specs,
 
-# scrape_apple_data, main block) remains the same.
+# --- Main Scraping Function ---
 
-def scrape_apple_data(output_file):
-    """Scrapes specified Apple product pages and saves unique data to a JSON file."""
-    print("Starting Apple India scrape...")
+def scrape_apple_data(output_file=OUTPUT_FILE):
+    """Scrapes all URLs in TARGET_URLS and saves unique products to JSON."""
     all_products = []
-    session = requests.Session() # Use a session object
-    session.headers.update(HEADERS)
+    processed_urls = set()
+    session = requests.Session()
+    session.headers.update({'User-Agent': USER_AGENT})
 
     for url in TARGET_URLS:
-        print(f"\nAttempting to scrape: {url}")
+        if url in processed_urls:
+            continue
+        processed_urls.add(url)
+
+        print(f"\nScraping: {url}")
         try:
-            response = session.get(url, timeout=30) # Increased timeout
-            response.raise_for_status() # Raise HTTP errors
-            print(f"Successfully fetched {url} (Status: {response.status_code})")
+            response = session.get(url, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status() # Raise HTTPError for bad responses
 
-            soup = BeautifulSoup(response.content, 'lxml') # Use lxml parser (install if needed: pip install lxml)
-            # If lxml fails, fallback: soup = BeautifulSoup(response.content, 'html.parser')
+            # Use lxml if installed, otherwise html.parser
+            try:
+                soup = BeautifulSoup(response.content, 'lxml')
+                parser_used = "lxml"
+            except ImportError:
+                print("-> lxml not found, using html.parser instead.")
+                soup = BeautifulSoup(response.content, 'html.parser')
+                parser_used = "html.parser"
+            print(f"-> Fetched and parsed with {parser_used}.")
 
-            page_products = parse_product_page(url, soup)
-            print(f"Extracted {len(page_products)} configurations from {url}")
-            all_products.extend(page_products)
+            # parse_product_page returns a list (empty, single iPhone, or multiple Macs)
+            products_from_page = parse_product_page(url, soup)
 
-            # Be polite - wait between requests
-            time.sleep(3)
+            if products_from_page:
+                 print(f"-> Extracted {len(products_from_page)} config(s) from this page.")
+                 all_products.extend(products_from_page) # Add all found products
+            else:
+                 print(f"-> No valid products extracted from: {url}")
 
+            # Respectful delay
+            print(f"-> Sleeping for {SLEEP_MIN:.1f}-{SLEEP_MAX:.1f} seconds...")
+            time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
+
+        except requests.exceptions.Timeout:
+             print(f"!!! Timeout occurred for {url} after {REQUEST_TIMEOUT} seconds !!!")
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching {url}: {e}")
+            print(f"!!! Request failed for {url}: {e} !!!")
         except Exception as e:
-            print(f"Error processing {url}: {e}") # Catch other errors like parsing
+            print(f"!!! Error processing {url}: {e} !!!")
+            import traceback
+            traceback.print_exc()
 
-    # --- Data Deduplication ---
+    # --- Deduplication (Across all scraped pages) ---
     unique_products = []
-    seen_identifiers = set()
+    seen_products = set()
+    print("\n--- Deduplicating results ---")
     for product in all_products:
-        # Create a unique identifier based on key specs and price
+        # Use a tuple of key attributes to identify uniqueness
         identifier = (
-            product['chip'],
-            product['cpu_cores'],
-            product['gpu_cores'],
-            product['ram_gb'],
-            product['storage_gb'],
-            product['price_inr'],
-            product['source_url'] # Include URL in case same spec exists for 13" vs 15" etc.
+            product.get('name'),
+            product.get('price_inr'),
+            product.get('storage_gb'), # Key differentiator
+            product.get('ram_gb'),     # Also important for Macs
+            product.get('type')
         )
-        if identifier not in seen_identifiers:
+        if identifier not in seen_products:
             unique_products.append(product)
-            seen_identifiers.add(identifier)
-        else:
-            print(f"Duplicate detected and removed: {product['name']}")
+            seen_products.add(identifier)
+        else: # Debugging duplicates
+            print(f"-> Duplicate detected and skipped: {identifier}")
 
 
-    print(f"\nScraping complete. Found {len(unique_products)} unique M-series configurations across all pages.")
+    print(f"\nTotal unique product configurations found across all pages: {len(unique_products)}")
 
-    # Get current timestamp
+    # --- Save to JSON ---
     timestamp = time.time()
-
-    # Prepare data for saving
     data_to_save = {
         "timestamp": timestamp,
         "products": unique_products
     }
-
-    # Save data to JSON file
     try:
-        with open(output_file, 'w', encoding='utf-8') as f: # Ensure utf-8 encoding
-            json.dump(data_to_save, f, indent=4, ensure_ascii=False) # ensure_ascii=False for non-latin chars if any
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(data_to_save, f, indent=4, ensure_ascii=False)
         print(f"Data successfully saved to {output_file}")
     except IOError as e:
-        print(f"Error saving data to {output_file}: {e}")
+        print(f"!!! Error saving data to {output_file}: {e} !!!")
     except Exception as e:
-        print(f"An unexpected error occurred during file saving: {e}")
+        print(f"!!! An unexpected error occurred during file saving: {e} !!!")
 
 
-# Allow running the scraper directly for testing
+    return unique_products
+
+# --- Main Execution Block ---
 if __name__ == '__main__':
+    print("Starting Apple Product Scraper...")
     # Install lxml if you haven't: pip install lxml
-    scrape_apple_data('apple_products.json')
+    scraped_products = scrape_apple_data()
+    print(f"\nScraping finished. Found {len(scraped_products)} unique products.")
