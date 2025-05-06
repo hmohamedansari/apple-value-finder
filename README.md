@@ -69,7 +69,7 @@ Follow these steps to set up the development environment:
     ```bash
     python app.py
     ```
-    By default, the application should run on `http://127.0.0.1:10001/` (as per our previous discussions, ensure the port is correctly set in `app.py`). Open this URL in your web browser to use the application.
+    By default, the application should run on `http://127.0.0.1:10001/` ensure the port is correctly set in `app.py`). Open this URL in your web browser to use the application.
 
 ## Project Structure (Example)
 
