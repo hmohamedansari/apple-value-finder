@@ -20,3 +20,18 @@ docker-data/
 .idea/
 *.swp
 *.swo
+
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# IDE / Editor specific
+.vscode/
+.idea/
+
+# macOS specific
+.DS_Store
+
+# Optional: If you don't want to commit the scraped data file
+apple_products.json
