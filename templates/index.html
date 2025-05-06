@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Mac Price Ladder</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex; /* Use flexbox for layout */
+            height: 100vh; /* Full viewport height */
+            overflow: hidden; /* Prevent body scroll */
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        #price-display {
+            position: fixed; /* Keep it fixed */
+            left: 0;
+            top: 0;
+            width: 250px; /* Width of the price panel */
+            height: 100vh; /* Full height */
+            background-color: #ffffff;
+            border-right: 1px solid #d2d2d7;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box; /* Include padding in width */
+            text-align: center;
+            z-index: 10;
+            transition: background-color 0.3s ease; /* Smooth transition */
+        }
+
+        #price-display h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            color: #6e6e73;
+        }
+
+        #current-price {
+            font-size: 2.5em;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 10px;
+            min-height: 1.2em; /* Prevent layout shift */
+        }
+         #current-product-name {
+            font-size: 0.9em;
+            color: #6e6e73;
+            min-height: 3em; /* Prevent layout shift */
+            word-wrap: break-word;
+         }
+
+
+        #product-list-container {
+            flex-grow: 1; /* Takes remaining space */
+            height: 100vh; /* Full height */
+            overflow-y: scroll; /* Enable vertical scrolling */
+            padding: 40px; /* Add padding around the product list */
+            box-sizing: border-box;
+            margin-left: 250px; /* Offset by price panel width */
+        }
+
+        .product-item {
+            background-color: #ffffff;
+            border: 1px solid #d2d2d7;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px; /* Space between cards */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            opacity: 0.7; /* Default opacity */
+            transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.4s ease;
+            scroll-margin-top: 40px; /* Adjust scroll snap alignment */
+        }
+
+        .product-item.is-focused {
+            opacity: 1; /* Fully opaque when focused */
+            transform: scale(1.02); /* Slightly larger when focused */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+
+        .product-item h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+
+        .product-item .specs {
+            font-size: 0.95em;
+            line-height: 1.6;
+            color: #333;
+        }
+        .product-item .specs strong {
+            color: #1d1d1f;
+        }
+
+        .product-item .price {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-top: 15px;
+            color: #0071e3; /* Apple blue */
+        }
+
+        .loading, .error {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #6e6e73;
+        }
+        .error { color: #d70000; }
+
+    </style>
+</head>
+<body>
+    <!-- Fixed Price Display Panel -->
+    <div id="price-display">
+        <h2>Current Price</h2>
+        <div id="current-price">₹ -</div>
+        <div id="current-product-name">Scroll to see products</div>
+    </div>
+
+    <!-- Scrollable Product List -->
+    <div id="product-list-container">
+        <div id="product-list">
+            <!-- Products will be loaded here by JavaScript -->
+            <div class="loading">Loading Apple Products...</div>
+        </div>
+    </div>
+
+    <script>
+        const priceDisplay = document.getElementById('current-price');
+        const nameDisplay = document.getElementById('current-product-name');
+        const productListDiv = document.getElementById('product-list');
+        const productListContainer = document.getElementById('product-list-container');
+
+        let productItems = []; // To store references to product elements
+
+        // Function to format price
+        function formatPrice(priceInr) {
+            if (priceInr === null || priceInr === undefined) return '₹ -';
+            return `₹${parseInt(priceInr).toLocaleString('en-IN')}`;
+        }
+
+        // Function to create a product card element
+        function createProductElement(product) {
+            const item = document.createElement('div');
+            item.classList.add('product-item');
+            // Store price and name in data attributes for easy access
+            item.dataset.price = product.price_inr || 0;
+            item.dataset.name = product.name || 'Unknown Product';
+
+            const cpuCores = product.cpu_cores || '?';
+            const gpuCores = product.gpu_cores || '?';
+            const ram = product.ram_gb || '?';
+            const storage = product.storage_gb || '?';
+            const chip = product.chip || 'N/A';
+
+            item.innerHTML = `
+                <h3>${product.name || 'Unknown Product'}</h3>
+                <div class="specs">
+                    <strong>Chip:</strong> ${chip}<br>
+                    <strong>Cores:</strong> ${cpuCores} CPU / ${gpuCores} GPU<br>
+                    <strong>Memory:</strong> ${ram} GB Unified Memory<br>
+                    <strong>Storage:</strong> ${storage} GB SSD
+                </div>
+                <div class="price">${formatPrice(product.price_inr)}</div>
+            `;
+            return item;
+        }
+
+        // --- Intersection Observer Logic ---
+        let observer;
+
+        function handleIntersection(entries) {
+            // Find the entry that is most visible (or the first one intersecting)
+            let focusedEntry = null;
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    // Simple approach: take the first one intersecting from the top
+                    if (!focusedEntry) {
+                        focusedEntry = entry;
+                    }
+                    // Optional: More complex logic to find the 'most visible'
+                    // based on intersectionRatio could go here.
+                }
+                // Add/remove focus class based on intersection
+                 entry.target.classList.toggle('is-focused', entry.isIntersecting);
+            });
+
+            if (focusedEntry) {
+                const targetElement = focusedEntry.target;
+                priceDisplay.textContent = formatPrice(targetElement.dataset.price);
+                nameDisplay.textContent = targetElement.dataset.name;
+            }
+        }
+
+        function setupObserver() {
+            if (observer) {
+                observer.disconnect(); // Disconnect previous observer if any
+            }
+
+            const options = {
+                root: productListContainer, // Observe within the scrollable container
+                rootMargin: '-40% 0px -40% 0px', // Trigger when item is closer to vertical center
+                threshold: 0.1 // Trigger even if only 10% is visible
+            };
+            observer = new IntersectionObserver(handleIntersection, options);
+
+            // Observe each product item
+            productItems = productListDiv.querySelectorAll('.product-item');
+            productItems.forEach(item => observer.observe(item));
+
+             // Set initial price display to the first item if available
+             if (productItems.length > 0) {
+                 priceDisplay.textContent = formatPrice(productItems[0].dataset.price);
+                 nameDisplay.textContent = productItems[0].dataset.name;
+                 // Optionally, mark the first item as focused initially if desired
+                 // productItems[0].classList.add('is-focused');
+             } else {
+                 priceDisplay.textContent = '₹ -';
+                 nameDisplay.textContent = 'No products found.';
+             }
+        }
+
+
+        // --- Fetch Data and Populate List ---
+        async function loadProducts() {
+            try {
+                const response = await fetch('/products');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+                }
+                const products = await response.json();
+
+                // Clear loading/error message
+                productListDiv.innerHTML = '';
+
+                if (!products || products.length === 0) {
+                    productListDiv.innerHTML = '<div class="error">No products found. Please run the scraper.</div>';
+                    priceDisplay.textContent = '₹ -';
+                    nameDisplay.textContent = 'No products found.';
+                    return;
+                }
+
+                // Create and append product elements
+                products.forEach(product => {
+                    const productElement = createProductElement(product);
+                    productListDiv.appendChild(productElement);
+                });
+
+                // Setup the Intersection Observer after elements are added
+                setupObserver();
+
+            } catch (error) {
+                console.error('Error loading products:', error);
+                productListDiv.innerHTML = `<div class="error">Error loading products: ${error.message}</div>`;
+                priceDisplay.textContent = '₹ -';
+                nameDisplay.textContent = 'Error loading data.';
+            }
+        }
+
+        // Load products when the page loads
+        document.addEventListener('DOMContentLoaded', loadProducts);
+
+    </script>
+</body>
+</html>
