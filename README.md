@@ -72,6 +72,8 @@ Follow these steps to set up the development environment:
     By default, the application should run on `http://127.0.0.1:10001/` (as per our previous discussions, ensure the port is correctly set in `app.py`). Open this URL in your web browser to use the application.
 
 ## Project Structure (Example)
+
+```text
 .
 ├── app.py # Main Flask application
 ├── scraper.py # Script to scrape Apple product data
