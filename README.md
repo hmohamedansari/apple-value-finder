@@ -24,8 +24,8 @@ Follow these steps to set up the development environment:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repository-url>
-    cd <repository-directory-name>
+    git clone https://github.com/hmohamedansari/apple-value-finder
+    cd apple-value-finder
     ```
 
 2.  **Create and Activate a Virtual Environment (Recommended):**
